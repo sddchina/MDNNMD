@@ -15,7 +15,7 @@ python MDNNMD.py
 
 Parameters of MDNNMD
 =====================
-The Parameters of MDNNMD are in our configuration file configuration.txt. The descriptions of these parameters of MDNNMD are provided below:
+The Parameters of MDNNMD are in our configuration file `configuration.txt`. The descriptions of these parameters of MDNNMD are provided below:
 
     =================================================================================================
     | PARAMETER NAME       | DESCRIPTION                                                            |
