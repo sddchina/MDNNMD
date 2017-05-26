@@ -36,4 +36,17 @@ The Parameters of MDNNMD are in our configuration file `configuration.txt`. The 
     |         bne          |batch normalization epsilon.                                            |
     -------------------------------------------------------------------------------------------------
     
+Output variables of MDNNMD
+=====================
+The descriptions of output variables of MDNNMD are provided below:
+
+    ====================================================================================================================
+    | VARIABLE NAME         |                                   DESCRIPTION                                            |
+    ====================================================================================================================
+    | Prediction_score.txt  |The final prediction score of all samples with 10 fold cross validation experiment.       |
+    |                       |The output of the MDNNMD with a softmax function.                                         |
+    --------------------------------------------------------------------------------------------------------------------
+    | Prediction_labels.txt |The prediction labels represent long-term patients with 0 and short-term patients with 1. |
+    --------------------------------------------------------------------------------------------------------------------    
+
 
