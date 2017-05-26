@@ -4,8 +4,8 @@ An implementation of multimodal deep neural network, a new model for human breas
 
 Requirements
 ========================
-python 2.7
-TensorFilow 1.0
-scikit-learn 0.18
-cuda 8.0
+    python 2.7
+    TensorFilow 1.0
+    scikit-learn 0.18
+    cuda 8.0
 
