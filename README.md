@@ -8,6 +8,14 @@ Requirements
     TensorFilow 1.0
     scikit-learn 0.18
     cuda 8.0
+Usage
+========================
+python MDNNMD.py
+------------------------
+
+Parameters of MDNNMD
+=====================
+The Parameters of MDNNMD are in our configuration file configuration.txt. The descriptions of these parameters of MDNNMD are provided below:
 
     =================================================================================================
     | PARAMETER NAME       | DESCRIPTION                                                            |
