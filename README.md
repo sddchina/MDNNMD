@@ -49,4 +49,11 @@ The descriptions of output variables of MDNNMD are provided below:
     | Prediction_labels.txt |The prediction labels represent long-term patients with 0 and short-term patients with 1. |
     --------------------------------------------------------------------------------------------------------------------    
 
+Contact
+=====================
+Author: Dongdong Sun @HILAB  
+Maintainer: Dongdong Sun  
+Mail: sddchina@mail.ustc.edu.cn
+Date: 2017-5-30  
+Health Informatics Lab, School of Information Science and Technology, University of Science and Technology of China
 
