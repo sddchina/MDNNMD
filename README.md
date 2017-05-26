@@ -20,17 +20,20 @@ The Parameters of MDNNMD are in our configuration file configuration.txt. The de
     =================================================================================================
     | PARAMETER NAME       | DESCRIPTION                                                            |
     =================================================================================================
-    |α,β,γ                 |α,β,γ are three damping factors used to balance the contribution for    |
+    |       α,β,γ          |α,β,γ are three damping factors used to balance the contribution for    |
     |                      |each DNN model. Here the sum of three damping factors should be equal 1.|
     -------------------------------------------------------------------------------------------------
-    |K                     |The number of fold with cross validation experiment or an index file.   |
+    |         K            |the number of fold with cross validation experiment or an index file.   |
     -------------------------------------------------------------------------------------------------    
-    |         D1           |The data file of gene expression profile                                |
+    |         D1           |the data file of gene expression profile                                |
     -------------------------------------------------------------------------------------------------
-    |NetConf.lambda_T      |The tuning parameter of network regularization, which is used to balance|
+    |         D2           |the data file of copy number alteration profile.                        |
     -------------------------------------------------------------------------------------------------
-    |                      |the fitness of the model (first term) and the smoothness of the scores  |
+    |         D3           |the data file of clinical information                                   |
     -------------------------------------------------------------------------------------------------
-    |                      |of connected genes (second term). The default number is 0.1.            |
+    |         M            |mini-batch size.                                                        |
     -------------------------------------------------------------------------------------------------
+    |         bne          |batch normalization epsilon.                                            |
+    -------------------------------------------------------------------------------------------------
+    
 
