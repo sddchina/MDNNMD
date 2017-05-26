@@ -11,7 +11,7 @@ Requirements
 Usage
 ========================
 python MDNNMD.py
-------------------------
+
 
 Parameters of MDNNMD
 =====================
@@ -20,9 +20,8 @@ The Parameters of MDNNMD are in our configuration file configuration.txt. The de
     =================================================================================================
     | PARAMETER NAME       | DESCRIPTION                                                            |
     =================================================================================================
-    |CompLeastProportion   |Least sample proportion included in each components, which represents   |
-    |                      |minimum proportion of the samples in every components given by the      |
-    |                      |mCGfinder. The default proportion is set to 15%.                        |
+    |α,β,γ                 |α,β,γ are three damping factors used to balance the contribution for    |
+    |                      |each DNN model. Here the sum of three damping factors should be equal 1.|
     -------------------------------------------------------------------------------------------------
     |maxCompoent           |Maximum number of components, which denotes the number of components    |
     |                      |given components given by mCGfinder at most. The default number is 5.   |
