@@ -1,8 +1,6 @@
 ###############################
 ## An implementation of multimodal deep neural network, a new model for human breast cancer prognosis prediction.
 ## Version 1.0
-## Author: Dongdong Sun
-## Date 2017-5-15
 ###############################
 
 #numpy should add first
@@ -13,13 +11,21 @@ import random, os, math
 import  pickle
 from utils import Utils
 from sklearn.cross_validation import StratifiedKFold
+import ConfigParser
+from numpy import float32
 
 class MDNNMD():
     def __init__(self):
         self.name = 'MDNNMD'
         self.K = 10
-        self.DATA = "Expr-400"
-        self.Kfold = "MMETABRIC_5year_skfold_1980_491.dat"
+        self.D1 = "Expr-400"
+        self.D2 = 'CNA-200'
+        self.D3 = 'CLINICAl-25'
+        self.alpha = 0.4
+        self.beta = 0.1
+        self.gamma = 0.6
+        self.LABEL = 'os_label_1980'
+        self.Kfold = "data/METABRIC_5year_skfold_1980_491.dat"
         self.epsilon = 1e-3
         self.BATCH_SIZE = 128
         self.END_LEARNING_RATE = 0.001
@@ -32,6 +38,24 @@ class MDNNMD():
         self.TRAINING = "True"
         self.active_fun = 'tanh'
         self.MAX_STEPS = [1000,1000,1000,1000,1000,1000,1000,1000,1000,1000] 
+       
+       
+    def load_config(self):
+        cp = ConfigParser.SafeConfigParser()
+        cp.read('mdnnmd.conf')
+        self.alpha = float32(cp.get('input', 'alpha'))
+        self.beta = float32(cp.get('input', 'beta'))
+        self.gamma = float32(cp.get('input', 'gamma'))
+        self.D1 = cp.get('input', 'D1')
+        self.D2 = cp.get('input', 'D2')
+        self.D3 = cp.get('input', 'D3')
+        self.K = int(cp.get('input', 'K'))
+        self.LABEL = cp.get('input', 'label')
+          
+          
+        self.BATCH_SIZE = int(cp.get('dnn', 'batch_size'))
+        self.epsilon = float32(cp.get('dnn', 'bne'))
+        self.active_fun =  cp.get('dnn', 'active_function')
         
       
     def scale_max_min(self, data, lower=-1, upper=1):
@@ -240,32 +264,19 @@ class MDNNMD():
 
                        
     def load_txt(self,op):     
-        if op == "CLINICAL-25":
-            d_class = numpy.loadtxt('METABRIC_label_5year_positive491.txt', delimiter=' ').reshape(-1, 1) 
-            self.F_SIZE = 25
-            d_matrix = numpy.loadtxt('METABRIC_clinical_1980_0326_25.txt', delimiter=' ')
-            
-        if op == "Expr-400":
-            d_class = numpy.loadtxt('METABRIC_label_5year_positive491.txt', delimiter=' ').reshape(-1, 1) 
-            self.F_SIZE = 400
-            d_matrix = numpy.loadtxt('METABRIC_Expr_400_0418.txt', delimiter=' ')
-            
-        if op == "CNA-200":
-            d_class = numpy.loadtxt('METABRIC_label_5year_positive491.txt', delimiter=' ').reshape(-1, 1) 
-            self.F_SIZE = 200
-            d_matrix = numpy.loadtxt('METABRIC_CNA_200_0418.txt', delimiter=' ') 
-            
-            
-            
+        d_class = numpy.loadtxt(self.LABEL, delimiter=' ').reshape(-1, 1) 
+        d_matrix = numpy.loadtxt(op, delimiter=' ')
+        self.F_SIZE = d_matrix.shape[1]
+                         
         return d_matrix, d_class
     
 
 ut = Utils() 
 #Expr-400
-dnn_md1 = MDNNMD() 
-dnn_md1.DATA = "Expr-400"
-d_matrix, d_class = dnn_md1.load_txt(dnn_md1.DATA)
-dnn_md1.MAX_STEPS = [430,105,435,500,390,320,500,290,470,315]   #3000,3000,3000,100 Expr-400
+dnn_md1 = MDNNMD()
+dnn_md1.load_config()
+d_matrix, d_class = dnn_md1.load_txt(dnn_md1.D1)
+dnn_md1.MAX_STEPS = [40,30,40,40,40,40,45,60,75,50]   #3000,3000,3000,100 MRMR-400  0504
 dnn_md1.hidden_units = [3000,3000,3000,100]
 #dnn_md1.active_fun = 'relu'
 dnn_md1.IS_PRINT_INFO = "F"
@@ -282,9 +293,9 @@ class_predict_fcn1 = dnn_md1.train(kf1,d_matrix, d_class, cls, ut)
 
 #CNA
 dnn_md2 = MDNNMD() 
-dnn_md2.DATA = "CNA-200"
-d_matrix, d_class = dnn_md2.load_txt(dnn_md2.DATA)
-dnn_md2.MAX_STEPS = [350,180,130,65,105,95,325,85,45,300]   #3000,3000,3000,100 CNA-200
+dnn_md2.load_config()
+d_matrix, d_class = dnn_md2.load_txt(dnn_md2.D2)
+dnn_md2.MAX_STEPS = [25,30,25,35,40,45,45,70,85,25]   #3000,3000,3000,100 CNV-200  0504
 dnn_md2.hidden_units = [3000,3000,3000,100]
 #dnn_md2.active_fun = 'relu'
 dnn_md2.IS_PRINT_INFO = "F"
@@ -293,8 +304,8 @@ class_predict_fcn2 = dnn_md2.train(kf1,d_matrix, d_class, cls, ut)
 
 #CLINICAL-25
 dnn_md3 = MDNNMD() 
-dnn_md3.DATA = "CLINICAL-25"
-d_matrix, d_class = dnn_md3.load_txt(dnn_md3.DATA)
+dnn_md3.load_config()
+d_matrix, d_class = dnn_md3.load_txt(dnn_md3.D3)
 dnn_md3.MAX_STEPS = [365,600,600,600,600,600,430,500,500,500]   #3000,3000,3000,100 CLINICAL-25
 dnn_md3.hidden_units = [3000,3000,3000,100]
 #dnn_md3.active_fun = 'relu'
@@ -302,9 +313,7 @@ dnn_md3.IS_PRINT_INFO = "F"
 label1, cls = dnn_md3.code_lables(d_class, dnn_md3.MT_CLASS_TASK1)
 
 class_predict_fcn3 = dnn_md3.train(kf1,d_matrix, d_class, cls, ut)
-a = 0.4
-b = 0.1
-class_predict_fcn = a*class_predict_fcn1 + b*class_predict_fcn2 + (1-a-b)*class_predict_fcn3
+class_predict_fcn = dnn_md1.alpha*class_predict_fcn1 + dnn_md1.beta*class_predict_fcn2 + dnn_md1.gamma*class_predict_fcn3
 ## DNN
 auc_fcn, pr_auc_fcn = ut.calc_auc_t(cls[:,1], class_predict_fcn[:,1])
 
@@ -313,12 +322,12 @@ pre_f,rec_f,f1_f,acc_f = ut.get_precision_and_recall_f1(np.argmax(cls,1), np.arg
 print("DNN## ACC: %s,AUC %s,PRE %s,REC %s,F1 %s, PR_AUC %s" %(acc_f,auc_fcn,pre_f,rec_f,f1_f,pr_auc_fcn))
 
                               
-name = dnn_md1.name+'_'+dnn_md1.DATA+'_'+str(dnn_md1.hidden_units[0])+'-'+str(dnn_md1.hidden_units[1])+'-'+str(dnn_md1.hidden_units[2])+'-'+str(dnn_md1.hidden_units[3])+'_'+str(a)+'_'+str(b)
+name = dnn_md1.name+'_'+str(dnn_md1.hidden_units[0])+'-'+str(dnn_md1.hidden_units[1])+'-'+str(dnn_md1.hidden_units[2])+'-'+str(dnn_md1.hidden_units[3])+'_'+str(dnn_md1.alpha)+'_'+str(dnn_md1.beta)
 ## save results
 #LABEL
-np.savetxt(name+"MDNNMD_pre_label.txt", np.argmax(class_predict_fcn,1))
+np.savetxt("Prediction_labels.txt", np.argmax(class_predict_fcn,1))
 
 #SCORE
 
-np.savetxt(name+"MDNNMD_pre_score.txt", class_predict_fcn[:,1])
+np.savetxt("Prediction_score.txt", class_predict_fcn[:,1])
 

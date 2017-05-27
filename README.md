@@ -4,10 +4,10 @@ An implementation of multimodal deep neural network, a new model for human breas
 
 Requirements
 ========================
-    python 2.7
-    TensorFilow 1.0
-    scikit-learn 0.18
-    cuda 8.0
+    [python 2.7](https://www.python.org/downloads/)
+    [TensorFilow 1.0](https://www.tensorflow.org/install/)
+    [scikit-learn 0.18](http://scikit-learn.org/stable/)
+    [cuda 8.0](https://developer.nvidia.com/cuda-downloads)
 Usage
 ========================
 python MDNNMD.py
@@ -15,7 +15,7 @@ python MDNNMD.py
 
 Parameters of MDNNMD
 =====================
-The Parameters of MDNNMD are in our configuration file `configuration.txt`. The descriptions of these parameters of MDNNMD are provided below:
+The Parameters of MDNNMD are in our configuration file `mdnnmd.conf`. The descriptions of these parameters of MDNNMD are provided below:
 
     =================================================================================================
     | PARAMETER NAME       | DESCRIPTION                                                            |
@@ -31,14 +31,18 @@ The Parameters of MDNNMD are in our configuration file `configuration.txt`. The 
     -------------------------------------------------------------------------------------------------
     |         D3           |the data file of clinical information                                   |
     -------------------------------------------------------------------------------------------------
+    |         LABEL        |the predict label of breast cancer patients with 1 or 0.                |
+    -------------------------------------------------------------------------------------------------
     |         M            |mini-batch size.                                                        |
     -------------------------------------------------------------------------------------------------
     |         bne          |batch normalization epsilon.                                            |
     -------------------------------------------------------------------------------------------------
+    |   active_function    |active_function in our MDNNMD model, choose tanh or relu.               |
+    -------------------------------------------------------------------------------------------------
     
-Output variables of MDNNMD
+Output files of MDNNMD
 =====================
-The descriptions of output variables of MDNNMD are provided below:
+The descriptions of output files of MDNNMD are provided below:
 
     ====================================================================================================================
     | VARIABLE NAME         |                                   DESCRIPTION                                            |
