@@ -31,9 +31,9 @@ The Parameters of MDNNMD are in our configuration file `mdnnmd.conf`. The descri
     -------------------------------------------------------------------------------------------------
     |         D3           |the data file of clinical information                                   |
     -------------------------------------------------------------------------------------------------
-    |         LABEL        |the predict label of breast cancer patients with 1 or 0.                |
+    |        LABEL         |the predict label of breast cancer patients with 1 or 0.                |
     -------------------------------------------------------------------------------------------------
-    |         M            |mini-batch size.                                                        |
+    |      batch_size      |mini-batch size.                                                        |
     -------------------------------------------------------------------------------------------------
     |         bne          |batch normalization epsilon.                                            |
     -------------------------------------------------------------------------------------------------
