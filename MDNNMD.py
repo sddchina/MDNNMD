@@ -230,14 +230,6 @@ class MDNNMD():
             
         
             for i in range(1,self.MAX_STEPS[i_k-1]+1):
-                if i % 5 == 0:   
-                    self.TRAINING = "False"
-                    test_Y1 = Y1.eval(feed_dict=feed_dict(False,i)) 
-                    JS = Joint_loss.eval(feed_dict=feed_dict(False,i))
-                    auc1, pr_auc1 = ut.calc_auc_t(test_l1[:,1], test_Y1[:,1])
-                    pre,rec,f1,acc = ut.get_precision_and_recall_f1(np.argmax(test_l1,1), np.argmax(test_Y1,1))
-                    if self.IS_PRINT_INFO == "T":
-                        print('Accuracy at step %s: accT:%3f auc1:%f  precision:%3f recall:%3f  f1:%3f' % (i,acc, auc1,pre,rec,f1))
                     
                 self.TRAINING = "True"
                 result = train_step.run(feed_dict=feed_dict(True,i))    
