@@ -13,6 +13,7 @@ from utils import Utils
 from sklearn.cross_validation import StratifiedKFold
 import ConfigParser
 from numpy import float32
+from sklearn.cross_validation import train_test_split
 
 class MDNNMD():
     def __init__(self):
@@ -23,11 +24,11 @@ class MDNNMD():
         self.D3 = 'CLINICAl-25'
         self.alpha = 0.4
         self.beta = 0.1
-        self.gamma = 0.6
+        self.gamma = 0.5
         self.LABEL = 'os_label_1980'
         self.Kfold = "data/METABRIC_5year_skfold_1980_491.dat"
         self.epsilon = 1e-3
-        self.BATCH_SIZE = 128
+        self.BATCH_SIZE = 64
         self.END_LEARNING_RATE = 0.001
         self.F_SIZE = 400
         self.hidden_units = [3000,3000,3000,100] 
@@ -37,7 +38,12 @@ class MDNNMD():
         self.IS_PRINT_INFO = "T"
         self.TRAINING = "True"
         self.active_fun = 'tanh'
+        self.drop = 0.5
+        self.regular = True
+        self.lrd = False
+        self.curr_fold = 1
         self.MAX_STEPS = [1000,1000,1000,1000,1000,1000,1000,1000,1000,1000] 
+        self.epoch = 100
        
        
     def load_config(self):
@@ -58,7 +64,7 @@ class MDNNMD():
         self.active_fun =  cp.get('dnn', 'active_function')
         
       
-    def scale_max_min(self, data, lower=-1, upper=1):
+    def scale_max_min(self, data, lower=0, upper=1):
         max_value = np.max(np.max(data, 0),0)  
         min_value = np.min(np.min(data, 0),0)
         r = np.size(data, 0)
@@ -155,7 +161,7 @@ class MDNNMD():
             biase2 = tf.Variable(tf.constant(0.1, shape=[self.hidden_units[1]]))
             hidden2_mu = tf.matmul(hidden1, weight2) + biase2
             hidden2_BN = self.batch_norm_wrapper(hidden2_mu,  self.TRAINING)
-            hidden2 = tf.nn.tanh(hidden2_BN)
+            
             
             if self.active_fun == 'relu':
                 hidden2 = tf.nn.relu(hidden2_BN)
@@ -167,7 +173,7 @@ class MDNNMD():
             biase3 = tf.Variable(tf.constant(0.1, shape=[self.hidden_units[2]])) 
             hidden3_mu = tf.matmul(hidden2, weight3) + biase3
             hidden3_BN = self.batch_norm_wrapper(hidden3_mu,  self.TRAINING)
-            hidden3 = tf.nn.tanh(hidden3_BN)
+            
             if self.active_fun == 'relu':
                 hidden3 = tf.nn.relu(hidden3_BN)
             else:
@@ -185,7 +191,7 @@ class MDNNMD():
             else:
                 Y1_h_dc1_drop  = tf.nn.tanh(Y1_h_dc1_BN)
              
-            Y1_h_dc1_drop_c = Y1_h_dc1_drop
+            Y1_h_dc1_drop_c = tf.nn.dropout(Y1_h_dc1_drop, keep_prob)
                                     
         with tf.name_scope('full_connected'):
             Y1_weight_fc1 = tf.Variable(tf.truncated_normal([self.hidden_units[3], self.MT_CLASS_TASK1], stddev=1.0 / math.sqrt(float(self.hidden_units[3])/2), seed = 1, name='weight-Y1-fc'))          
@@ -196,12 +202,29 @@ class MDNNMD():
             
 
         with tf.name_scope('cross_entropy'):
+            l2_loss = 0
+            if self.regular:
+                l2_loss = tf.nn.l2_loss(weight1) + tf.nn.l2_loss(weight2) + tf.nn.l2_loss(weight3)  + tf.nn.l2_loss(Y1_weight) + tf.nn.l2_loss(Y1_weight_fc1) 
+                beta = 1e-4
+                l2_loss *= beta
             Y1_cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels = y1_, logits = Y1_pre))
-            Joint_loss = Y1_cross_entropy 
+            Joint_loss = Y1_cross_entropy + l2_loss
+            
+            
+            #train_loss = tf.summary.scalar('train_loss', Joint_loss)
+            #valid_loss = tf.summary.scalar('valid_loss', Joint_loss)
+            #######
+            valid_loss = tf.summary.scalar('train_loss', Joint_loss)
+            train_loss = tf.summary.scalar('valid_loss', Joint_loss)
         
         with tf.name_scope('training'):
-         
-            train_step = tf.train.AdamOptimizer(self.END_LEARNING_RATE).minimize(Joint_loss)     
+            if self.lrd:
+                cur_step = tf.Variable(0, trainable=False)  # count the number of steps taken.
+                starter_learning_rate = 0.4
+                learning_rate = tf.train.exponential_decay(starter_learning_rate, cur_step, 100000, 0.96, staircase=True)
+                train_step = tf.train.GradientDescentOptimizer(learning_rate).minimize(Joint_loss, global_step=cur_step)
+            else:
+                train_step = tf.train.AdamOptimizer(self.END_LEARNING_RATE).minimize(Joint_loss)     
     
         with tf.name_scope('accuracy'):
             with tf.name_scope('correct_prediction'):
@@ -210,54 +233,100 @@ class MDNNMD():
                 
             with tf.name_scope('accuracy'):
                 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        
-        def run_CV(train_f,train_l1,test_f,test_l1,i_k):
+                
+               
+                
+        def run_CV(train_f,train_l,vali_f,vali_l,test_f,test_l,i_k):
             
             config = tf.ConfigProto()
             config.gpu_options.per_process_gpu_memory_fraction = 0.3
             sess = tf.InteractiveSession(config=config)
+            train_writer = tf.summary.FileWriter('logs/train',sess.graph)
+            valid_writer = tf.summary.FileWriter('logs/valid')
             tf.global_variables_initializer().run()
     
-            def feed_dict(train,i):
+            def feed_dict(train,validation,i):
                 if train:
                     batch_size = self.BATCH_SIZE
-                    xs, y1 = self.next_batch(train_f,train_l1,batch_size,i)
-                    k = 1.0
+                    xs, y1 = self.next_batch(train_f,train_l,batch_size,i)
+                    k = self.drop
+                elif validation:
+                    xs, y1 = vali_f,vali_l
+                    k = 1.0                 
                 else:
-                    xs, y1 = test_f,test_l1
+                    xs, y1 = test_f,test_l
                     k = 1.0
                 return {x: xs, y1_: y1, keep_prob: k}
             
-        
-            for i in range(1,self.MAX_STEPS[i_k-1]+1):
-                    
+            
+            epochs = -1
+            for i in range(0,self.MAX_STEPS[i_k-1]*10+1):
                 self.TRAINING = "True"
-                result = train_step.run(feed_dict=feed_dict(True,i))    
+                _,loss,Y1_cross_entropy_my= sess.run([train_step,train_loss,Y1_cross_entropy],feed_dict=feed_dict(True,False,i))   
+                
+                #print(Y1_cross_entropy_my)
+               
+                if i % 10 == 0:
+                    epochs = epochs+1
+                    #if self.curr_fold == 3:
+                    train_writer.add_summary(loss, epochs)
+                    self.TRAINING = "False"
+                    #if self.curr_fold == 3:
+                    valid_writer.add_summary(valid_loss.eval(feed_dict=feed_dict(False,True,i)),epochs)
+                    test_Y1 = Y1.eval(feed_dict=feed_dict(False,False,i)) 
+                    JS = Joint_loss.eval(feed_dict=feed_dict(False,False,i))
+                    auc1, pr_auc1 = ut.calc_auc_t(test_l[:,1], test_Y1[:,1])
+                    pre,rec,f1,acc = ut.get_precision_and_recall_f1(np.argmax(test_l,1), np.argmax(test_Y1,1))
+                    if self.IS_PRINT_INFO == "T":
+                        print('Accuracy at step %s: accT:%3f auc1:%f  precision:%3f recall:%3f  f1:%3f' % (i,acc, auc1,pre,rec,f1))
+                    
                 
                  
             self.TRAINING = "False"
-            test_Y1 = Y1.eval(feed_dict=feed_dict(False,i))       
+            test_Y1 = Y1.eval(feed_dict=feed_dict(False,False,i)) 
+            valid_Y1 = Y1.eval(feed_dict=feed_dict(False,True,i)) 
+            train_writer.close()
+            valid_writer.close()     
             sess.close()   
-            return test_Y1
+            return test_Y1,valid_Y1
 
         class_predict_fcn_t = numpy.zeros([d_matrix.shape[0], self.MT_CLASS_TASK1])
-
+        
+    
         i = 0
         for train_indc, test_indc in kf1: 
       
             i += 1       
+            
+            if i == 2:
+                exit()
+            
             print('K fold: %s' % (i)) 
                
-            class_predict_fcn_t[test_indc]= run_CV(d_matrix[train_indc], cls[train_indc], 
-                                                 d_matrix[test_indc], 
-                                                    cls[test_indc],i)
-       
-        return class_predict_fcn_t
+            X_train, X_valid, y_train, y_valid = train_test_split(d_matrix[train_indc], d_class[train_indc], test_size=0.2, random_state=0)
+            X_test =  d_matrix[test_indc]
+            y_test =  cls[test_indc]
+            
+            label11, cls_train = self.code_lables(y_train, self.MT_CLASS_TASK1)
+            label12, cls_valid = self.code_lables(y_valid, self.MT_CLASS_TASK1)
+            
+            class_predict_fcn_t[test_indc], valid_Y2= run_CV(X_train, cls_train, X_valid, cls_valid, X_test, y_test,i)
+            if i == 1:
+                cls_valid_all = cls_valid
+                p_valid_all = valid_Y2
+            else:
+                cls_valid_all = np.vstack((cls_valid_all,cls_valid))
+                p_valid_all = np.vstack((p_valid_all,valid_Y2))
+            
+        return class_predict_fcn_t,p_valid_all,cls_valid_all
 
                        
-    def load_txt(self,op):     
+    def load_txt(self,op,f_len):     
+        
         d_class = numpy.loadtxt(self.LABEL, delimiter=' ').reshape(-1, 1) 
         d_matrix = numpy.loadtxt(op, delimiter=' ')
+        
+        d_matrix = d_matrix[:,0:f_len]
         self.F_SIZE = d_matrix.shape[1]
                          
         return d_matrix, d_class
@@ -267,13 +336,17 @@ ut = Utils()
 #Expr-400
 dnn_md1 = MDNNMD()
 dnn_md1.load_config()
-d_matrix, d_class = dnn_md1.load_txt(dnn_md1.D1)
-dnn_md1.MAX_STEPS = [40,30,40,40,40,40,45,60,75,50]   #3000,3000,3000,100 MRMR-400  0504
-dnn_md1.hidden_units = [3000,3000,3000,100]
-#dnn_md1.active_fun = 'relu'
+d_matrix, d_class = dnn_md1.load_txt(dnn_md1.D1,400)
+dnn_md1.epoch = 40
+dnn_md1.MAX_STEPS = [dnn_md1.epoch,dnn_md1.epoch,dnn_md1.epoch,dnn_md1.epoch,dnn_md1.epoch,dnn_md1.epoch,dnn_md1.epoch,dnn_md1.epoch,dnn_md1.epoch,dnn_md1.epoch]   #3000,3000,3000,100 MRMR-400  0504
+#dnn_md1.MAX_STEPS = [50,50,50,50,50,50,50,50,50,50]
+dnn_md1.hidden_units = [1000,500,500,100]
+##dnn_md1.active_fun = 'relu'
+#dnn_md1.regular = 'True'
+dnn_md1.END_LEARNING_RATE = 0.00001
 dnn_md1.IS_PRINT_INFO = "F"
 label1, cls = dnn_md1.code_lables(d_class, dnn_md1.MT_CLASS_TASK1)
-
+# 
 if os.path.exists(dnn_md1.Kfold):
     kf1 = pickle.load(open(dnn_md1.Kfold,"rb"))
     print("successfully loading already existing kfold index!")
@@ -281,45 +354,77 @@ else:
     kf1 = StratifiedKFold(label1, n_folds=dnn_md1.K)
     pickle.dump(kf1, open(dnn_md1.Kfold, "wb"))
     print("successfully generating kfold index!")
-class_predict_fcn1 = dnn_md1.train(kf1,d_matrix, d_class, cls, ut)
+#class_predict_fcn1,p_valid_all1,cls_valid_all1 = dnn_md1.train(kf1,d_matrix, d_class, cls, ut)
+
+
+
 
 #CNA
 dnn_md2 = MDNNMD() 
 dnn_md2.load_config()
-d_matrix, d_class = dnn_md2.load_txt(dnn_md2.D2)
-dnn_md2.MAX_STEPS = [25,30,25,35,40,45,45,70,85,25]   #3000,3000,3000,100 CNV-200  0504
-dnn_md2.hidden_units = [3000,3000,3000,100]
+d_matrix, d_class = dnn_md2.load_txt(dnn_md2.D2,200)
+#dnn_md2.MAX_STEPS = [25,30,25,35,40,45,45,70,85,25]   #3000,3000,3000,100 CNV-200  0504
+dnn_md2.epoch = 40
+dnn_md2.MAX_STEPS = [dnn_md2.epoch,dnn_md2.epoch,dnn_md2.epoch,dnn_md2.epoch,dnn_md2.epoch,dnn_md2.epoch,dnn_md2.epoch,dnn_md2.epoch,dnn_md2.epoch,dnn_md2.epoch] 
+dnn_md2.hidden_units = [1000,500,500,100]
 #dnn_md2.active_fun = 'relu'
-dnn_md2.IS_PRINT_INFO = "F"
+dnn_md2.END_LEARNING_RATE = 0.00001
+dnn_md2.IS_PRINT_INFO = "F" 
 label1, cls = dnn_md2.code_lables(d_class, dnn_md2.MT_CLASS_TASK1)
-class_predict_fcn2 = dnn_md2.train(kf1,d_matrix, d_class, cls, ut)
+#class_predict_fcn2,p_valid_all2,cls_valid_all2 = dnn_md2.train(kf1,d_matrix, d_class, cls, ut)
+
+
+
+
 
 #CLINICAL-25
 dnn_md3 = MDNNMD() 
 dnn_md3.load_config()
-d_matrix, d_class = dnn_md3.load_txt(dnn_md3.D3)
-dnn_md3.MAX_STEPS = [365,600,600,600,600,600,430,500,500,500]   #3000,3000,3000,100 CLINICAL-25
-dnn_md3.hidden_units = [3000,3000,3000,100]
+d_matrix, d_class = dnn_md3.load_txt(dnn_md3.D3,25)
+dnn_md3.epoch = 60
+dnn_md3.MAX_STEPS = [dnn_md3.epoch,dnn_md3.epoch,dnn_md3.epoch,dnn_md3.epoch,dnn_md3.epoch,dnn_md3.epoch,dnn_md3.epoch,dnn_md3.epoch,dnn_md3.epoch,dnn_md3.epoch]   #3000,3000,3000,100 CLINICAL-25
+dnn_md3.hidden_units = [1000,1000,1000,100]  #1000 1000 1000 100
 #dnn_md3.active_fun = 'relu'
+dnn_md3.BATCH_SIZE = 128
+dnn_md3.END_LEARNING_RATE = 0.001
+dnn_md3.drop = 1.0
 dnn_md3.IS_PRINT_INFO = "F"
 label1, cls = dnn_md3.code_lables(d_class, dnn_md3.MT_CLASS_TASK1)
+class_predict_fcn3,p_valid_all3,cls_valid_all3 = dnn_md3.train(kf1,dnn_md3.scale_max_min(d_matrix), d_class, cls, ut)
 
-class_predict_fcn3 = dnn_md3.train(kf1,d_matrix, d_class, cls, ut)
-class_predict_fcn = dnn_md1.alpha*class_predict_fcn1 + dnn_md1.beta*class_predict_fcn2 + dnn_md1.gamma*class_predict_fcn3
-## DNN
-auc_fcn, pr_auc_fcn = ut.calc_auc_t(cls[:,1], class_predict_fcn[:,1])
 
-pre_f,rec_f,f1_f,acc_f = ut.get_precision_and_recall_f1(np.argmax(cls,1), np.argmax(class_predict_fcn,1))
 
-print("DNN## ACC: %s,AUC %s,PRE %s,REC %s,F1 %s, PR_AUC %s" %(acc_f,auc_fcn,pre_f,rec_f,f1_f,pr_auc_fcn))
 
-                              
+dnn_md1.alpha = 0.3
+dnn_md1.beta = 0.1
+dnn_md1.gamma = 1-dnn_md1.alpha-dnn_md1.beta
+
+#validation
+#p_valid_all = dnn_md1.alpha*p_valid_all1 + dnn_md1.beta*p_valid_all2 + dnn_md1.gamma*p_valid_all3
+#auc_fcn, pr_auc_fcn = ut.calc_auc_t(cls_valid_all1[:,1], p_valid_all[:,1])
+
+#pre_f,rec_f,f1_f,acc_f = ut.get_precision_and_recall_f1(np.argmax(cls_valid_all1,1), np.argmax(p_valid_all,1))
+
+#print("DNN-validation## ACC: %s,AUC %s,PRE %s,REC %s,F1 %s, PR_AUC %s" %(acc_f,auc_fcn,pre_f,rec_f,f1_f,pr_auc_fcn))
+
+#test 
+#class_predict_fcn = dnn_md1.alpha*class_predict_fcn1 + dnn_md1.beta*class_predict_fcn2 + dnn_md1.gamma*class_predict_fcn3
+#auc_fcn, pr_auc_fcn = ut.calc_auc_t(cls[:,1], class_predict_fcn[:,1])
+
+#pre_f,rec_f,f1_f,acc_f = ut.get_precision_and_recall_f1(np.argmax(cls,1), np.argmax(class_predict_fcn,1))
+
+#print("DNN-testing## ACC: %s,AUC %s,PRE %s,REC %s,F1 %s, PR_AUC %s" %(acc_f,auc_fcn,pre_f,rec_f,f1_f,pr_auc_fcn))
+
+            
 name = dnn_md1.name+'_'+str(dnn_md1.hidden_units[0])+'-'+str(dnn_md1.hidden_units[1])+'-'+str(dnn_md1.hidden_units[2])+'-'+str(dnn_md1.hidden_units[3])+'_'+str(dnn_md1.alpha)+'_'+str(dnn_md1.beta)
-## save results
-#LABEL
-np.savetxt("Prediction_labels.txt", np.argmax(class_predict_fcn,1))
-
 #SCORE
+#np.savetxt("results/result_METABRIC1/p_valid_all1.txt", p_valid_all1)
+#np.savetxt("results/result_METABRIC1/p_valid_all2.txt", p_valid_all2)
+#np.savetxt("results/result_METABRIC1/p_valid_all3.txt", p_valid_all3)
 
-np.savetxt("Prediction_score.txt", class_predict_fcn[:,1])
+#np.savetxt("results/result_METABRIC1/cls_valid_all1.txt", cls_valid_all1)
 
+#np.savetxt("results/result_METABRIC1/class_predict_fcn1.txt", class_predict_fcn1)
+#np.savetxt("results/result_METABRIC1/class_predict_fcn2.txt", class_predict_fcn2)
+#np.savetxt("results/result_METABRIC1/class_predict_fcn3.txt", class_predict_fcn3)
+#np.savetxt("results/result_METABRIC1/cls.txt", cls)
