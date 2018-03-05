@@ -5,7 +5,7 @@ An implementation of multimodal deep neural network, a new model for human breas
 Reference
 ========================
 
-Our manuscipt titled with "A multimodal deep neural network for human breast cancer prognosis prediction by integrating multi-dimensional data" has been accepted by IEEE/ACM Transactions on Computational Biology and Bioinformatics. If you find DenseNet useful in your research, please consider citing:
+Our manuscipt titled with "A multimodal deep neural network for human breast cancer prognosis prediction by integrating multi-dimensional data" has been accepted by IEEE/ACM Transactions on Computational Biology and Bioinformatics. If you find MDNNMD useful in your research, please consider citing:
 
 Sun, D., Wang, M., & Li, A. (2018). A multimodal deep neural network for human breast cancer prognosis prediction by integrating multi-dimensional data. IEEE/ACM Transactions on Computational Biology and Bioinformatics.
 
